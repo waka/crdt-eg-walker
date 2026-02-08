@@ -47,22 +47,30 @@ interface DocState {
   needsRebuild: boolean  // Ropeの再構築が必要か
 }
 
-/** Document と内部状態の紐付け */
-const stateMap = new WeakMap<object, DocState>()
-
 /** ドキュメント（OpLog + スナップショットの統合管理） */
 export interface Document<T = string> {
   readonly oplog: ListOpLog<T>
   readonly branch: Branch<T>
 }
 
+/** 内部型: _state プロパティを持つ Document */
+interface DocumentInternal<T = string> extends Document<T> {
+  /** @internal */
+  _state: DocState
+}
+
+/** Document から内部状態を取得する */
+function getState<T>(doc: Document<T>): DocState {
+  return (doc as DocumentInternal<T>)._state
+}
+
 /** 空のドキュメントを作成 */
 export function createDocument<T = string>(): Document<T> {
-  const doc: Document<T> = {
+  const doc: DocumentInternal<T> = {
     oplog: createOpLog<T>(),
     branch: { snapshot: [], version: [] },
+    _state: { rope: new Rope(), textCache: '', needsRebuild: false },
   }
-  stateMap.set(doc, { rope: new Rope(), textCache: '', needsRebuild: false })
   return doc
 }
 
@@ -71,11 +79,11 @@ export function createDocument<T = string>(): Document<T> {
  * キャッシュがない場合のフォールバック。
  */
 export function openDocument<T>(oplog: ListOpLog<T>): Document<T> {
-  const doc: Document<T> = {
+  const doc: DocumentInternal<T> = {
     oplog,
     branch: checkout(oplog),
+    _state: { rope: null, textCache: null, needsRebuild: true },
   }
-  stateMap.set(doc, { rope: null, textCache: null, needsRebuild: true })
   return doc
 }
 
@@ -88,11 +96,11 @@ export function restoreDocument<T>(
   snapshot: T[],
   version: LV[],
 ): Document<T> {
-  const doc: Document<T> = {
+  const doc: DocumentInternal<T> = {
     oplog,
     branch: { snapshot: snapshot.slice(), version: version.slice() },
+    _state: { rope: null, textCache: null, needsRebuild: true },
   }
-  stateMap.set(doc, { rope: null, textCache: null, needsRebuild: true })
   return doc
 }
 
@@ -112,18 +120,16 @@ export function docInsert<T>(
   branch.snapshot.splice(pos, 0, ...content)
 
   // Rope にも挿入 + キャッシュ無効化
-  const state = stateMap.get(doc)
-  if (state) {
-    if (state.rope && !state.needsRebuild) {
-      for (let i = 0; i < content.length; i++) {
-        state.rope.insert(pos + i, String(content[i]))
-      }
-    } else {
-      // Ropeが未構築なら次回getText時に再構築
-      state.needsRebuild = true
+  const state = getState(doc)
+  if (state.rope && !state.needsRebuild) {
+    for (let i = 0; i < content.length; i++) {
+      state.rope.insert(pos + i, String(content[i]))
     }
-    state.textCache = null
+  } else {
+    // Ropeが未構築なら次回getText時に再構築
+    state.needsRebuild = true
   }
+  state.textCache = null
 
   branch.version = doc.oplog.cg.heads.slice()
 }
@@ -144,18 +150,16 @@ export function docDelete<T>(
   branch.snapshot.splice(pos, len)
 
   // Rope からも削除 + キャッシュ無効化
-  const state = stateMap.get(doc)
-  if (state) {
-    if (state.rope && !state.needsRebuild) {
-      for (let i = 0; i < len; i++) {
-        state.rope.delete(pos)
-      }
-    } else {
-      // Ropeが未構築なら次回getText時に再構築
-      state.needsRebuild = true
+  const state = getState(doc)
+  if (state.rope && !state.needsRebuild) {
+    for (let i = 0; i < len; i++) {
+      state.rope.delete(pos)
     }
-    state.textCache = null
+  } else {
+    // Ropeが未構築なら次回getText時に再構築
+    state.needsRebuild = true
   }
+  state.textCache = null
 
   branch.version = doc.oplog.cg.heads.slice()
 }
@@ -167,20 +171,18 @@ export function getContent<T>(doc: Document<T>): readonly T[] {
 
 /** 文字列として取得（T = string専用、キャッシュ付き） */
 export function getText(doc: Document<string>): string {
-  const state = stateMap.get(doc)
-  if (state) {
-    if (state.textCache !== null) return state.textCache
-    // Ropeが構築済みならRopeから、そうでなければsnapshotからjoin
-    let text: string
-    if (state.rope && !state.needsRebuild) {
-      text = state.rope.toString()
-    } else {
-      text = doc.branch.snapshot.join('')
-    }
-    state.textCache = text
-    return text
+  const state = getState(doc)
+  if (state.textCache !== null) return state.textCache
+
+  // Ropeが構築済みならRopeから、そうでなければsnapshotからjoin
+  let text: string
+  if (state.rope && !state.needsRebuild) {
+    text = state.rope.toString()
+  } else {
+    text = doc.branch.snapshot.join('')
   }
-  return doc.branch.snapshot.join('')
+  state.textCache = text
+  return text
 }
 
 /**
@@ -209,12 +211,8 @@ export function mergeRemote<T>(
   }
 
   // Rope は遅延再構築 + キャッシュ無効化
-  const state = stateMap.get(doc)
-  if (state) {
-    state.rope = null
-    state.textCache = null
-    state.needsRebuild = true
-  } else {
-    stateMap.set(doc, { rope: null, textCache: null, needsRebuild: true })
-  }
+  const state = getState(doc)
+  state.rope = null
+  state.textCache = null
+  state.needsRebuild = true
 }
