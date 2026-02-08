@@ -1,0 +1,35 @@
+{
+  "compilerOptions": {
+    /* 基本設定 */
+    "target": "ES2022", // 最新のJavaScript構文で出力
+    "lib": ["ES2022", "DOM", "DOM.Iterable"], // 型チェックで利用するライブラリ
+    "module": "ES2022", // ESモジュールで出力
+    "moduleResolution": "bundler", // モジュールの探索をバンドラーに任せる
+
+    /* 型チェック設定 */
+    "strict": true, // 厳格な型チェックを有効化
+    "exactOptionalPropertyTypes": true, // オプショナルプロパティの型を厳密にチェック
+    "forceConsistentCasingInFileNames": true, // ファイル名の大文字・小文字を厳密にチェック
+    "noUncheckedIndexedAccess": true, // 配列やオブジェクトのインデックスアクセスを厳密にチェック
+    "noUnusedLocals": true, // 未使用のローカル変数をエラーにする
+    "noUnusedParameters": true, // 未使用の関数パラメータをエラーにする
+    "noFallthroughCasesInSwitch": true, // switch文のフォールスルーをエラーにする
+
+    /* ソースマップと宣言ファイルの生成 */
+    "declaration": true, // 型定義ファイル(.d.ts)を生成
+    "declarationMap": true, // 型定義ファイルのソースマップを生成
+    "sourceMap": true, // ソースマップを生成
+    "outDir": "./dist",
+
+    /* モジュール関連 */
+    "esModuleInterop": true, // CommonJSモジュールをESモジュールと同様に扱う
+    "isolatedModules": true, // 各ファイルを独立して変換し、解釈できないコードを検出
+    "skipLibCheck": true, // *.d.tsファイルの型チェックをスキップ
+    "verbatimModuleSyntax": true, // import/export構文をそのまま保持
+
+    // パス解決
+    "baseUrl": "."
+  },
+  "include": ["src", "stories"],
+  "exclude": ["node_modules", "dist"]
+}

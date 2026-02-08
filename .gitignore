@@ -1,0 +1,14 @@
+# dependencies
+node_modules/
+
+# storybook
+storybook-static/
+
+# output
+dist/
+
+# logs
+npm-debug.log*
+
+# LLM
+.claude/

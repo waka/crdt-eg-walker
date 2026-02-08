@@ -1,0 +1,52 @@
+{
+  "name": "crdt-eg-walker",
+  "version": "0.5.0",
+  "description": "CRDT with eg-walker.",
+  "keywords": [
+    "crdt",
+    "eg-walker"
+  ],
+  "homepage": "https://github.com/waka/crdt-eg-walker#readme",
+  "bugs": {
+    "url": "https://github.com/waka/crdt-eg-walker/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/waka/crdt-eg-walker.git"
+  },
+  "license": "MIT",
+  "author": "yo_waka",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "storybook": "storybook dev -p 6006",
+    "storybook:build": "storybook build",
+    "build": "vite build",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.2",
+    "@storybook/addon-vitest": "^10.2.7",
+    "@storybook/html-vite": "^10.2.7",
+    "eslint": "^9.39.2",
+    "storybook": "^10.2.7",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.54.0",
+    "vite": "^7.3.1",
+    "vite-plugin-dts": "^4.5.4",
+    "vitest": "^4.0.18"
+  }
+}
