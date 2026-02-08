@@ -584,20 +584,12 @@ describe(`ドキュメントオープン（公正な比較）: ${VERY_LARGE_DOC_
 // docInsertは毎回スナップショットを直接更新するため、最後のgetText()は即座に返る
 
 describe(`Document APIでのローカル編集: ${LARGE_DOC_SIZE}文字構築`, () => {
-  bench('eg-walker Document (docInsert)', () => {
+  bench('eg-walker', () => {
     const doc = createDocument<string>()
     for (let i = 0; i < LARGE_DOC_SIZE; i++) {
       docInsert(doc, 'A', i, String.fromCharCode(97 + (i % 26)))
     }
     getText(doc)
-  })
-
-  bench('eg-walker 従来API (localInsert + checkout)', () => {
-    const oplog = createOpLog<string>()
-    for (let i = 0; i < LARGE_DOC_SIZE; i++) {
-      localInsert(oplog, 'A', i, String.fromCharCode(97 + (i % 26)))
-    }
-    checkoutSimpleString(oplog)
   })
 
   bench('Yjs', () => {
