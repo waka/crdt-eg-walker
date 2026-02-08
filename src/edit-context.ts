@@ -14,12 +14,12 @@ import {
 import { binarySearch } from './utils/binary-search.js'
 import { diff } from './causal-graph-advanced.js'
 import { OrderStatisticTree } from './order-statistic-tree.js'
-import type {
+import {
   ItemState,
-  Item,
-  EditContext,
-  ListOpLog,
-  CausalGraph,
+  type Item,
+  type EditContext,
+  type ListOpLog,
+  type CausalGraph,
 } from './types.js'
 import type { SnapshotOps } from './snapshot-ops.js'
 
@@ -28,11 +28,9 @@ import type { SnapshotOps } from './snapshot-ops.js'
 const max2 = (a: number, b: number): number => (a > b ? a : b)
 const min2 = (a: number, b: number): number => (a < b ? a : b)
 
-// ===== ItemState ローカル定数（const enum インライン化保証） =====
-
-const NYI = 0 as ItemState  // NotYetInserted
-const INS = 1 as ItemState  // Inserted
-const DEL = 2 as ItemState  // Deleted
+const NYI = ItemState.NotYetInserted
+const INS = ItemState.Inserted
+const DEL = ItemState.Deleted
 
 /** ドキュメント内カーソル */
 interface DocCursor {
@@ -83,7 +81,7 @@ function advance1<T>(
       throw Error('endStateが削除でないアイテムのadvance削除')
     }
     // 削除カウントを増やす
-    item.curState = (item.curState + 1) as ItemState
+    item.curState = (item.curState + 1) as unknown as ItemState
   } else {
     if (item.curState !== NYI) {
       throw Error('既に挿入されたアイテムのadvance挿入: ' + opId)
@@ -124,7 +122,7 @@ function retreat1<T>(
   }
 
   // curStateを1つ戻す
-  item.curState = (item.curState - 1) as ItemState
+  item.curState = (item.curState - 1) as unknown as ItemState
 
   // 状態変更後にツリーのカウンタを更新（O(log n)）
   ctx.items.refreshCountsForItem(item)

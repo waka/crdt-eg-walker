@@ -3,6 +3,8 @@
  *
  * スナップショットを string で直接保持し、getText を即座に返せるようにする。
  * Document<string> の T[] (string[]) による join('') のボトルネックを解消する。
+ *
+ * Document と同様に mutable パターン（内部変更・void返却）を採用。
  */
 
 import { localInsert, localDelete, createOpLog, mergeOplogInto } from './oplog.js'
@@ -17,6 +19,9 @@ export interface TextDocument {
   readonly text: string
   readonly version: LV[]
 }
+
+/** 内部でプロパティを更新するためのキャスト */
+type MutableTextDocument = { -readonly [K in keyof TextDocument]: TextDocument[K] }
 
 /** 空のテキストドキュメントを作成 */
 export function createTextDocument(): TextDocument {
@@ -65,13 +70,11 @@ export function textDocInsert(
   agent: string,
   pos: number,
   content: string,
-): TextDocument {
+): void {
   localInsert(doc.oplog, agent, pos, ...content.split(''))
-  return {
-    oplog: doc.oplog,
-    text: doc.text.slice(0, pos) + content + doc.text.slice(pos),
-    version: doc.oplog.cg.heads.slice(),
-  }
+  const mut = doc as MutableTextDocument
+  mut.text = doc.text.slice(0, pos) + content + doc.text.slice(pos)
+  mut.version = doc.oplog.cg.heads.slice()
 }
 
 /**
@@ -83,13 +86,11 @@ export function textDocDelete(
   agent: string,
   pos: number,
   len: number = 1,
-): TextDocument {
+): void {
   localDelete(doc.oplog, agent, pos, len)
-  return {
-    oplog: doc.oplog,
-    text: doc.text.slice(0, pos) + doc.text.slice(pos + len),
-    version: doc.oplog.cg.heads.slice(),
-  }
+  const mut = doc as MutableTextDocument
+  mut.text = doc.text.slice(0, pos) + doc.text.slice(pos + len)
+  mut.version = doc.oplog.cg.heads.slice()
 }
 
 /** テキスト取得（即座に返す） */
@@ -106,9 +107,10 @@ export function getTextDocText(doc: TextDocument): string {
 export function mergeTextRemote(
   doc: TextDocument,
   remoteOplog: ListOpLog<string>,
-): TextDocument {
+): void {
   mergeOplogInto(doc.oplog, remoteOplog)
   const heads = doc.oplog.cg.heads
+  const mut = doc as MutableTextDocument
 
   if (canFastForward(doc.oplog.cg, doc.version, heads)) {
     // fast-forward: diffの操作をstring slicingで適用
@@ -124,18 +126,11 @@ export function mergeTextRemote(
         }
       }
     }
-    return {
-      oplog: doc.oplog,
-      text,
-      version: findDominators(doc.oplog.cg, [...doc.version, ...heads]),
-    }
+    mut.text = text
+    mut.version = findDominators(doc.oplog.cg, [...doc.version, ...heads])
   } else {
     // 並行編集あり: フルリプレイで正確な収束を保証
-    const text = checkoutSimpleString(doc.oplog)
-    return {
-      oplog: doc.oplog,
-      text,
-      version: doc.oplog.cg.heads.slice(),
-    }
+    mut.text = checkoutSimpleString(doc.oplog)
+    mut.version = doc.oplog.cg.heads.slice()
   }
 }

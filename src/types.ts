@@ -64,14 +64,16 @@ export interface ListOpLog<T = string> {
 // ===== 編集コンテキスト (Edit Context) =====
 
 /** アイテムの状態 */
-export const enum ItemState {
+export const ItemState = {
   /** まだ挿入されていない */
-  NotYetInserted = 0,
+  NotYetInserted: 0,
   /** 挿入済み（可視） */
-  Inserted = 1,
+  Inserted: 1,
   /** 削除済み */
-  Deleted = 2,
-}
+  Deleted: 2,
+} as const
+
+export type ItemState = (typeof ItemState)[keyof typeof ItemState]
 
 /** FugueのYjsMod統合アルゴリズム用アイテム */
 export interface Item {
@@ -128,14 +130,16 @@ export interface DiffResult {
 }
 
 /** diff区間のフラグ */
-export const enum DiffFlag {
+export const DiffFlag = {
   /** aのみに含まれる */
-  OnlyA = 0,
+  OnlyA: 0,
   /** bのみに含まれる */
-  OnlyB = 1,
+  OnlyB: 1,
   /** a, b両方に含まれる */
-  Shared = 2,
-}
+  Shared: 2,
+} as const
+
+export type DiffFlag = (typeof DiffFlag)[keyof typeof DiffFlag]
 
 // ===== findConflicting結果 =====
 

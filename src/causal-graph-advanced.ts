@@ -15,19 +15,18 @@ import {
   addRaw,
   nextLV,
 } from './causal-graph.js'
-import type {
-  LV,
-  LVRange,
-  RawVersion,
-  CausalGraph,
+import {
   DiffFlag,
-  VersionSummary,
+  type LV,
+  type LVRange,
+  type RawVersion,
+  type CausalGraph,
+  type VersionSummary,
 } from './types.js'
 
-// const enumの値を直接使用
-const DiffFlagOnlyA: DiffFlag = 0 as DiffFlag
-const DiffFlagOnlyB: DiffFlag = 1 as DiffFlag
-const DiffFlagShared: DiffFlag = 2 as DiffFlag
+const DiffFlagOnlyA = DiffFlag.OnlyA
+const DiffFlagOnlyB = DiffFlag.OnlyB
+const DiffFlagShared = DiffFlag.Shared
 
 const min2 = (a: number, b: number): number => (a < b ? a : b)
 

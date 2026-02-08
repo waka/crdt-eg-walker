@@ -6,10 +6,9 @@
  * parent ポインタにより、Item → ノード → インデックスを O(log n) で計算可能。
  */
 
-import type { Item } from './types.js'
+import { ItemState, type Item } from './types.js'
 
-// ItemState のローカル定数
-const INS = 1 // Inserted
+const INS = ItemState.Inserted
 
 /** 順序統計木のノード */
 export interface OSTNode {

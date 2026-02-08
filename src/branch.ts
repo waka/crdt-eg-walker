@@ -9,19 +9,18 @@ import { traverseAndApply, createEditContext } from './edit-context.js'
 import { wrapArray } from './snapshot-ops.js'
 import { Rope } from './rope.js'
 import { OrderStatisticTree } from './order-statistic-tree.js'
-import { ItemState } from './types.js'
-import type {
-  LV,
-  LVRange,
-  Item,
-  EditContext,
+import {
+  ItemState,
   DiffFlag,
-  Branch,
-  ListOpLog,
+  type LV,
+  type LVRange,
+  type Item,
+  type EditContext,
+  type Branch,
+  type ListOpLog,
 } from './types.js'
 
-// DiffFlagの値
-const DiffFlagOnlyB: DiffFlag = 1 as DiffFlag
+const DiffFlagOnlyB = DiffFlag.OnlyB
 
 /** 空のブランチを作成 */
 export function createEmptyBranch<T = string>(): Branch<T> {
