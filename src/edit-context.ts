@@ -10,7 +10,7 @@ import {
   lvCmp,
 } from './causal-graph.js'
 import { binarySearch } from './utils/binary-search.js'
-import { diff } from './causal-graph-utils.js'
+import { diff } from './causal-graph-advanced.js'
 import type {
   ItemState,
   Item,

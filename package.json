@@ -1,10 +1,12 @@
 {
   "name": "crdt-eg-walker",
-  "version": "0.5.0",
+  "version": "0.1.0",
   "description": "CRDT with eg-walker.",
   "keywords": [
-    "crdt",
-    "eg-walker"
+    "CRDT",
+    "eg-walker",
+    "collaboration",
+    "shared-editing"
   ],
   "homepage": "https://github.com/waka/crdt-eg-walker#readme",
   "bugs": {
@@ -33,9 +35,9 @@
     "build": "vite build",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
+    "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc --noEmit",
     "bench": "vitest bench"
   },
   "devDependencies": {

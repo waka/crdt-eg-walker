@@ -129,13 +129,13 @@ eg-walkerは操作ログのみを保持し、CRDTメタデータ（Item構造体
 
 ```
 src/
-  types.ts              - 型定義
-  causal-graph.ts       - 因果グラフ（CG）基本操作
-  causal-graph-utils.ts - CG高度操作（diff, findConflicting等）
-  oplog.ts              - 操作ログ管理
-  edit-context.ts       - 核心アルゴリズム（Fugue/YjsMod統合）
-  branch.ts             - ブランチ操作（checkout, 増分更新）
-  index.ts              - 公開APIエントリポイント
+  types.ts                 - 型定義
+  causal-graph.ts          - 因果グラフ（CG）基本操作
+  causal-graph-advanced.ts - CG高度操作（diff, findConflicting等）
+  oplog.ts                 - 操作ログ管理
+  edit-context.ts          - 編集アルゴリズム（Fugue/YjsMod統合）
+  branch.ts                - ブランチ操作（checkout, 増分更新）
+  index.ts                 - 公開APIエントリポイント
 ```
 
 ## ライセンス

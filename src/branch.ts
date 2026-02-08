@@ -4,7 +4,7 @@
  * checkout, mergeChangesIntoBranch などの文書スナップショット管理。
  */
 
-import { diff, isFastForward, findConflicting, findDominators } from './causal-graph-utils.js'
+import { diff, isFastForward, findConflicting, findDominators } from './causal-graph-advanced.js'
 import { traverseAndApply, createEditContext } from './edit-context.js'
 import { ItemState } from './types.js'
 import type {

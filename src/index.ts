@@ -59,13 +59,13 @@ export {
   serializeFromVersion,
   mergePartialVersions,
   intersectWithSummary,
-} from './causal-graph-utils.js'
+} from './causal-graph-advanced.js'
 
 export type {
   DiffResult as CausalDiffResult,
   PartialSerializedCGEntry,
   PartialSerializedCG,
-} from './causal-graph-utils.js'
+} from './causal-graph-advanced.js'
 
 // 操作ログ
 export {

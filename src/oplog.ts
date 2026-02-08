@@ -17,7 +17,7 @@ import {
   diff,
   serializeDiff,
   mergePartialVersions,
-} from './causal-graph-utils.js'
+} from './causal-graph-advanced.js'
 import type {
   RawVersion,
   ListOp,
