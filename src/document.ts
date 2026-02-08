@@ -21,7 +21,7 @@ import type { LV, ListOpLog, Branch } from './types.js'
  *
  * この関数は、to の全headsが from の子孫であることを確認する。
  */
-function canFastForward(
+export function canFastForward(
   cg: import('./types.js').CausalGraph,
   branchVersion: LV[],
   mergeHeads: LV[],
@@ -49,19 +49,6 @@ interface DocState {
 
 /** Document と内部状態の紐付け */
 const stateMap = new WeakMap<object, DocState>()
-
-/** Ropeが必要なときに構築する */
-function ensureRope(doc: object, snapshot: readonly unknown[]): Rope {
-  const state = stateMap.get(doc)!
-  if (state.rope && !state.needsRebuild) return state.rope
-  const rope = new Rope()
-  for (let i = 0; i < snapshot.length; i++) {
-    rope.insert(i, String(snapshot[i]))
-  }
-  state.rope = rope
-  state.needsRebuild = false
-  return rope
-}
 
 /** ドキュメント（OpLog + スナップショットの統合管理） */
 export interface Document<T = string> {

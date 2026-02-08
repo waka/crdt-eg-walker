@@ -9,10 +9,11 @@ import {
   checkout,
   mergeChangesIntoBranch,
   createDocument,
-  openDocument,
   restoreDocument,
   docInsert,
   getText,
+  restoreTextDocument,
+  getTextDocText,
 } from '../src/index.js'
 import type { Branch } from '../src/index.js'
 import {
@@ -266,23 +267,11 @@ describe(`大文書(${LARGE_DOC_SIZE}文字)構築: 末尾に1文字ずつ追加
 })
 
 describe(`大文書(${LARGE_DOC_SIZE}文字)に対するランダム挿入100回`, () => {
-  const baseOplog = buildLargeEgWalkerDoc()
   const { oplog: baseOplogForBranch, branch: baseBranch } = buildLargeEgWalkerBranch()
   const baseRefOplog = buildLargeRefDoc()
   const yjsState = buildLargeYjsState()
 
-  bench('eg-walker (full replay)', () => {
-    const rng = createRng(77)
-    const oplog = createOpLog<string>()
-    mergeOplogInto(oplog, baseOplog)
-    for (let i = 0; i < 100; i++) {
-      const pos = Math.floor(rng() * (LARGE_DOC_SIZE + i + 1))
-      localInsert(oplog, 'B', pos, String.fromCharCode(65 + (i % 26)))
-    }
-    checkoutSimpleString(oplog)
-  })
-
-  bench('eg-walker (incremental)', () => {
+  bench('eg-walker', () => {
     const rng = createRng(77)
     const oplog = createOpLog<string>()
     mergeOplogInto(oplog, baseOplogForBranch)
@@ -323,25 +312,11 @@ describe(`大文書(${LARGE_DOC_SIZE}文字)に対するランダム挿入100回
 })
 
 describe(`大文書(${LARGE_DOC_SIZE}文字)に対するランダム削除100回`, () => {
-  const baseOplog = buildLargeEgWalkerDoc()
   const { oplog: baseOplogForBranch, branch: baseBranch } = buildLargeEgWalkerBranch()
   const baseRefOplog = buildLargeRefDoc()
   const yjsState = buildLargeYjsState()
 
-  bench('eg-walker (full replay)', () => {
-    const rng = createRng(88)
-    const oplog = createOpLog<string>()
-    mergeOplogInto(oplog, baseOplog)
-    let length = LARGE_DOC_SIZE
-    for (let i = 0; i < 100; i++) {
-      const pos = Math.floor(rng() * length)
-      localDelete(oplog, 'B', pos)
-      length--
-    }
-    checkoutSimpleString(oplog)
-  })
-
-  bench('eg-walker (incremental)', () => {
+  bench('eg-walker', () => {
     const rng = createRng(88)
     const oplog = createOpLog<string>()
     mergeOplogInto(oplog, baseOplogForBranch)
@@ -388,31 +363,11 @@ describe(`大文書(${LARGE_DOC_SIZE}文字)に対するランダム削除100回
 })
 
 describe(`大文書(${LARGE_DOC_SIZE}文字)に対する挿入+削除の混合200回`, () => {
-  const baseOplog = buildLargeEgWalkerDoc()
   const { oplog: baseOplogForBranch, branch: baseBranch } = buildLargeEgWalkerBranch()
   const baseRefOplog = buildLargeRefDoc()
   const yjsState = buildLargeYjsState()
 
-  bench('eg-walker (full replay)', () => {
-    const rng = createRng(99)
-    const oplog = createOpLog<string>()
-    mergeOplogInto(oplog, baseOplog)
-    let length = LARGE_DOC_SIZE
-    for (let i = 0; i < 200; i++) {
-      if (rng() < 0.5) {
-        const pos = Math.floor(rng() * (length + 1))
-        localInsert(oplog, 'B', pos, String.fromCharCode(65 + (i % 26)))
-        length++
-      } else {
-        const pos = Math.floor(rng() * length)
-        localDelete(oplog, 'B', pos)
-        length--
-      }
-    }
-    checkoutSimpleString(oplog)
-  })
-
-  bench('eg-walker (incremental)', () => {
+  bench('eg-walker', () => {
     const rng = createRng(99)
     const oplog = createOpLog<string>()
     mergeOplogInto(oplog, baseOplogForBranch)
@@ -477,29 +432,11 @@ describe(`大文書(${LARGE_DOC_SIZE}文字)に対する挿入+削除の混合20
 })
 
 describe(`大文書(${LARGE_DOC_SIZE}文字)の並行編集+マージ`, () => {
-  const baseOplog = buildLargeEgWalkerDoc()
   const { oplog: baseOplogForBranch, branch: baseBranch } = buildLargeEgWalkerBranch()
   const baseRefOplog = buildLargeRefDoc()
   const yjsState = buildLargeYjsState()
 
-  bench('eg-walker (full replay)', () => {
-    const oplogA = createOpLog<string>()
-    mergeOplogInto(oplogA, baseOplog)
-    const oplogB = createOpLog<string>()
-    mergeOplogInto(oplogB, baseOplog)
-
-    for (let i = 0; i < 100; i++) {
-      localInsert(oplogA, 'A', LARGE_DOC_SIZE + i, String.fromCharCode(97 + (i % 26)))
-    }
-    for (let i = 0; i < 100; i++) {
-      localInsert(oplogB, 'B', LARGE_DOC_SIZE + i, String.fromCharCode(65 + (i % 26)))
-    }
-
-    mergeOplogInto(oplogA, oplogB)
-    checkoutSimpleString(oplogA)
-  })
-
-  bench('eg-walker (incremental)', () => {
+  bench('eg-walker', () => {
     const oplogA = createOpLog<string>()
     mergeOplogInto(oplogA, baseOplogForBranch)
     const oplogB = createOpLog<string>()
@@ -569,12 +506,19 @@ describe(`ドキュメントオープン（公正な比較）: ${LARGE_DOC_SIZE}
   // 実際のアプリではディスクにプレーンテキストとしてキャッシュされる
   const cachedSnapshot = baseBranch.snapshot
   const cachedVersion = baseBranch.version
+  const cachedText = baseBranch.snapshot.join('')
   const yjsState = buildLargeYjsState()
 
   bench('eg-walker: キャッシュからの復元 (restoreDocument)', () => {
     // 配列コピー + 文字列化のコスト
     const doc = restoreDocument(baseOplog, cachedSnapshot, cachedVersion)
     getText(doc)
+  })
+
+  bench('eg-walker: キャッシュからの復元 (restoreTextDocument)', () => {
+    // 文字列をそのまま保持するだけ
+    const doc = restoreTextDocument(baseOplog, cachedText, cachedVersion)
+    getTextDocText(doc)
   })
 
   bench('eg-walker: フルリプレイ (checkout)', () => {
@@ -598,14 +542,6 @@ function buildVeryLargeEgWalkerDoc() {
   return oplog
 }
 
-function buildVeryLargeRefDoc() {
-  const oplog = refCreateOpLog<string>()
-  for (let i = 0; i < VERY_LARGE_DOC_SIZE; i++) {
-    refLocalInsert(oplog, 'A', i, String.fromCharCode(97 + (i % 26)))
-  }
-  return oplog
-}
-
 function buildVeryLargeYjsState() {
   const doc = new Y.Doc()
   const text = doc.getText('t')
@@ -620,11 +556,17 @@ describe(`ドキュメントオープン（公正な比較）: ${VERY_LARGE_DOC_
   const baseBranch = checkout(baseOplog)
   const cachedSnapshot = baseBranch.snapshot
   const cachedVersion = baseBranch.version
+  const cachedText = baseBranch.snapshot.join('')
   const yjsState = buildVeryLargeYjsState()
 
   bench('eg-walker: キャッシュからの復元 (restoreDocument)', () => {
     const doc = restoreDocument(baseOplog, cachedSnapshot, cachedVersion)
     getText(doc)
+  })
+
+  bench('eg-walker: キャッシュからの復元 (restoreTextDocument)', () => {
+    const doc = restoreTextDocument(baseOplog, cachedText, cachedVersion)
+    getTextDocText(doc)
   })
 
   bench('eg-walker: フルリプレイ (checkout)', () => {

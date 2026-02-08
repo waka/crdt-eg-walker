@@ -253,7 +253,6 @@ function findByCurPosNode(
  */
 function findByCurPosWithHint(
   root: OSTNode | null,
-  totalSize: number,
   targetPos: number,
   hint: { pos: number; idx: number; endPos: number } | null,
 ): { idx: number; endPos: number } {
@@ -342,7 +341,7 @@ export class OrderStatisticTree {
     targetPos: number,
     hint?: { pos: number; idx: number; endPos: number } | null,
   ): { idx: number; endPos: number } {
-    return findByCurPosWithHint(this._root, this.length, targetPos, hint ?? null)
+    return findByCurPosWithHint(this._root, targetPos, hint ?? null)
   }
 
   /**

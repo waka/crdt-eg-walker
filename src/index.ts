@@ -113,4 +113,17 @@ export {
   getContent,
   getText,
   mergeRemote,
+  canFastForward,
 } from './document.js'
+
+// テキスト特化ドキュメント
+export type { TextDocument } from './text-document.js'
+export {
+  createTextDocument,
+  openTextDocument,
+  restoreTextDocument,
+  textDocInsert,
+  textDocDelete,
+  getTextDocText,
+  mergeTextRemote,
+} from './text-document.js'
