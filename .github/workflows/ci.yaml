@@ -29,7 +29,10 @@ jobs:
         run: npm ci
 
       - name: Install submodules
-        run: git submodule update --init --recursive
+        run: |
+          git submodule update --init --recursive
+          cd vendor/yjs && npm ci && cd ../..
+          cd vendor/eg-walker-reference && npm ci && cd ../..
 
       - name: Run type check
         run: npm run typecheck
