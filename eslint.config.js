@@ -11,6 +11,6 @@ export default defineConfig(
 
   // 除外設定
   {
-    ignores: ['dist/**', 'node_modules/**'],
+    ignores: ['dist/**', 'node_modules/**', 'storybook-static/**', 'vendor/**'],
   },
 );
