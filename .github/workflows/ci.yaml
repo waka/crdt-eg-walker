@@ -31,8 +31,8 @@ jobs:
       - name: Install submodules
         run: |
           git submodule update --init --recursive
-          cd vendor/yjs && npm ci && cd ../..
-          cd vendor/eg-walker-reference && npm ci && cd ../..
+          cd vendor/yjs && npm install && cd ../..
+          cd vendor/eg-walker-reference && npm install && cd ../..
 
       - name: Run type check
         run: npm run typecheck
