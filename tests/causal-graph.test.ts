@@ -22,7 +22,7 @@ describe('createCG', () => {
     const cg = createCG()
     expect(cg.heads).toEqual([])
     expect(cg.entries).toEqual([])
-    expect(cg.agentToVersion.size).toBe(0)
+    expect(Object.keys(cg.agentToVersion).length).toBe(0)
   })
 })
 
@@ -225,8 +225,8 @@ describe('summarizeVersion', () => {
     add(cg, 'B', 0, 2, [2])
 
     const summary = summarizeVersion(cg)
-    expect(summary.get('A')).toEqual([[0, 3]])
-    expect(summary.get('B')).toEqual([[0, 2]])
+    expect(summary['A']).toEqual([[0, 3]])
+    expect(summary['B']).toEqual([[0, 2]])
   })
 })
 

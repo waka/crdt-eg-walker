@@ -4,7 +4,7 @@
  * checkout, mergeChangesIntoBranch などの文書スナップショット管理。
  */
 
-import { findConflicting, findDominators } from './causal-graph-utils.js'
+import { diff, isFastForward, findConflicting, findDominators } from './causal-graph-utils.js'
 import { traverseAndApply, createEditContext } from './edit-context.js'
 import { ItemState } from './types.js'
 import type {
@@ -50,17 +50,48 @@ export function checkoutSimpleString(
 }
 
 /**
+ * fast-forward可能な場合に直接スナップショットに操作を適用する高速パス。
+ * EditContext、プレースホルダー、diff計算をすべてスキップする。
+ */
+function applyFastForward<T>(
+  branch: Branch<T>,
+  oplog: ListOpLog<T>,
+  mergeVersion: LV[],
+): void {
+  const ranges = diff(oplog.cg, branch.version, mergeVersion).bOnly
+  for (const [start, end] of ranges) {
+    for (let lv = start; lv < end; lv++) {
+      const op = oplog.ops[lv]!
+      if (op.type === 'ins') {
+        branch.snapshot.splice(op.pos, 0, op.content)
+      } else {
+        branch.snapshot.splice(op.pos, 1)
+      }
+    }
+  }
+  branch.version = findDominators(oplog.cg, [
+    ...branch.version,
+    ...mergeVersion,
+  ])
+}
+
+/**
  * 既存のブランチに新しい変更をマージする。
  *
- * 1. 共通祖先を見つける
- * 2. 競合する操作セットを再構築してアイテムリストを構築
- * 3. 新しい操作を適用
+ * 1. fast-forward可能ならEditContextなしで直接適用（高速パス）
+ * 2. そうでなければ共通祖先を見つけて通常パスで処理
  */
 export function mergeChangesIntoBranch<T>(
   branch: Branch<T>,
   oplog: ListOpLog<T>,
   mergeVersion: LV[] = oplog.cg.heads,
 ): void {
+  // 高速パス: ブランチからmergeVersionへfast-forward可能な場合
+  if (isFastForward(oplog.cg, branch.version, mergeVersion)) {
+    applyFastForward(branch, oplog, mergeVersion)
+    return
+  }
+
   const newOps: LVRange[] = []
   const conflictOps: LVRange[] = []
 
@@ -94,6 +125,7 @@ export function mergeChangesIntoBranch<T>(
     delTargets: new Array<number>(oplog.ops.length).fill(-1),
     itemsByLV: new Array<Item | null>(oplog.ops.length).fill(null),
     curVersion: commonAncestor,
+    _cursorHint: null,
   }
 
   // 共通祖先時点のプレースホルダーアイテムを作成

@@ -20,7 +20,6 @@ import type {
   LVRange,
   RawVersion,
   CausalGraph,
-  ClientEntry,
   DiffFlag,
   VersionSummary,
 } from './types.js'
@@ -61,6 +60,9 @@ export const diff = (
   a: LV[],
   b: LV[],
 ): DiffResult => {
+  // 同一バージョン同士なら空結果を即時返却
+  if (lvEq(a, b)) return { aOnly: [], bOnly: [] }
+
   const flags = new Map<number, DiffFlag>()
 
   // 最大ヒープ（大きいバージョンから処理）
@@ -122,6 +124,21 @@ export const diff = (
   aOnly.reverse()
   bOnly.reverse()
   return { aOnly, bOnly }
+}
+
+// ===== isFastForward =====
+
+/**
+ * fromからtoへのfast-forwardが可能かどうか判定する。
+ * diff(cg, from, to).aOnly が空ならfast-forward可能。
+ */
+export const isFastForward = (
+  cg: CausalGraph,
+  from: LV[],
+  to: LV[],
+): boolean => {
+  if (lvEq(from, to)) return true
+  return diff(cg, from, to).aOnly.length === 0
 }
 
 // ===== versionContainsLV =====
@@ -430,8 +447,9 @@ const intersectWithSummaryFull = (
   summary: VersionSummary,
   visit: IntersectVisitor,
 ): void => {
-  for (const [agent, ranges] of summary) {
-    const clientEntries = cg.agentToVersion.get(agent) as ClientEntry[] | undefined
+  for (const agent in summary) {
+    const ranges = summary[agent]!
+    const clientEntries = cg.agentToVersion[agent]
 
     for (const [rangeStartSeq, endSeq] of ranges) {
       let startSeq = rangeStartSeq
@@ -484,12 +502,8 @@ export const intersectWithSummary = (
         versions.push(vLast)
       })
     } else {
-      if (remainder == null) remainder = new Map()
-      let a = remainder.get(agent)
-      if (a == null) {
-        a = []
-        remainder.set(agent, a)
-      }
+      if (remainder == null) remainder = {}
+      const a = (remainder[agent] ??= [])
       a.push([startSeq, endSeq])
     }
   })

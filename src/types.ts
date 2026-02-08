@@ -40,7 +40,7 @@ export interface CausalGraph {
   /** エントリのリスト（バージョン順） */
   entries: CGEntry[]
   /** エージェントID → バージョンマッピング */
-  agentToVersion: Map<string, ClientEntry[]>
+  agentToVersion: Record<string, ClientEntry[]>
 }
 
 // ===== 操作ログ (OpLog) =====
@@ -103,6 +103,8 @@ export interface EditContext {
   itemsByLV: (Item | null)[]
   /** 現在処理中のバージョン */
   curVersion: LV[]
+  /** カーソル位置のキャッシュ（findByCurPos高速化用） */
+  _cursorHint: { pos: number; idx: number; endPos: number } | null
 }
 
 // ===== ブランチ (Branch) =====
@@ -150,4 +152,4 @@ export interface ConflictingResult {
 // ===== バージョンサマリ =====
 
 /** バージョンサマリ: エージェントごとの既知シーケンス番号範囲 */
-export type VersionSummary = Map<string, LVRange[]>
+export type VersionSummary = Record<string, LVRange[]>

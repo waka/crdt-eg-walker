@@ -49,6 +49,7 @@ export {
 // 因果グラフ高度操作
 export {
   diff,
+  isFastForward,
   versionContainsLV,
   findDominators,
   findDominators2,

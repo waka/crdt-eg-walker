@@ -1,0 +1,6 @@
+[submodule "vendor/eg-walker-reference"]
+	path = vendor/eg-walker-reference
+	url = https://github.com/josephg/eg-walker-reference.git
+[submodule "vendor/yjs"]
+	path = vendor/yjs
+	url = https://github.com/yjs/yjs.git

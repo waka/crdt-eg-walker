@@ -6,13 +6,13 @@
  */
 
 import {
-  iterVersionsBetween,
   nextLV,
   lvCmp,
 } from './causal-graph.js'
+import { binarySearch } from './utils/binary-search.js'
 import { diff } from './causal-graph-utils.js'
-import { ItemState } from './types.js'
 import type {
+  ItemState,
   Item,
   EditContext,
   ListOpLog,
@@ -21,9 +21,14 @@ import type {
 
 // ===== ヘルパー =====
 
-/** アイテムの表示幅（Insertedなら1、それ以外は0） */
-const itemWidth = (state: ItemState): number =>
-  state === ItemState.Inserted ? 1 : 0
+const max2 = (a: number, b: number): number => (a > b ? a : b)
+const min2 = (a: number, b: number): number => (a < b ? a : b)
+
+// ===== ItemState ローカル定数（const enum インライン化保証） =====
+
+const NYI = 0 as ItemState  // NotYetInserted
+const INS = 1 as ItemState  // Inserted
+const DEL = 2 as ItemState  // Deleted
 
 /** ドキュメント内カーソル */
 interface DocCursor {
@@ -42,14 +47,22 @@ function findByCurPos(ctx: EditContext, targetPos: number): DocCursor {
   let endPos = 0
   let i = 0
 
+  // ヒントが有効かつ targetPos >= ヒント位置なら、そこから開始
+  const hint = ctx._cursorHint
+  if (hint !== null && targetPos >= hint.pos) {
+    curPos = hint.pos
+    endPos = hint.endPos
+    i = hint.idx
+  }
+
   while (curPos < targetPos) {
     if (i >= ctx.items.length) {
       throw Error('ドキュメントがtargetPosに到達するのに十分な長さではありません')
     }
 
     const item = ctx.items[i]!
-    curPos += itemWidth(item.curState)
-    endPos += itemWidth(item.endState)
+    if (item.curState === INS) curPos++
+    if (item.endState === INS) endPos++
     i++
   }
 
@@ -79,19 +92,19 @@ function advance1<T>(
   const item = ctx.itemsByLV[targetLV]!
 
   if (op.type === 'del') {
-    if (item.curState < ItemState.Inserted) {
+    if (item.curState < INS) {
       throw Error('無効な状態 - advance削除だがアイテムの状態が: ' + item.curState)
     }
-    if (item.endState < ItemState.Deleted) {
+    if (item.endState < DEL) {
       throw Error('endStateが削除でないアイテムのadvance削除')
     }
     // 削除カウントを増やす
     item.curState = (item.curState + 1) as ItemState
   } else {
-    if (item.curState !== ItemState.NotYetInserted) {
+    if (item.curState !== NYI) {
       throw Error('既に挿入されたアイテムのadvance挿入: ' + opId)
     }
-    item.curState = ItemState.Inserted
+    item.curState = INS
   }
 }
 
@@ -111,14 +124,14 @@ function retreat1<T>(
   const item = ctx.itemsByLV[targetLV]!
 
   if (op.type === 'del') {
-    if (item.curState < ItemState.Deleted) {
+    if (item.curState < DEL) {
       throw Error('現在削除されていないアイテムのretreat削除')
     }
-    if (item.endState < ItemState.Deleted) {
+    if (item.endState < DEL) {
       throw Error('endStateが削除でないアイテムのretreat削除')
     }
   } else {
-    if (item.curState !== ItemState.Inserted) {
+    if (item.curState !== INS) {
       throw Error('挿入状態でないアイテムのretreat挿入')
     }
   }
@@ -144,7 +157,7 @@ function integrate(
   // 並行挿入がなければスキャン不要
   if (
     cursor.idx >= ctx.items.length ||
-    ctx.items[cursor.idx]!.curState !== ItemState.NotYetInserted
+    ctx.items[cursor.idx]!.curState !== NYI
   ) {
     return
   }
@@ -163,7 +176,7 @@ function integrate(
     const other = ctx.items[scanIdx]!
 
     // 並行挿入の範囲を超えたら終了
-    if (other.curState !== ItemState.NotYetInserted) break
+    if (other.curState !== NYI) break
 
     if (other.opId === newItem.rightParent) {
       throw Error('無効な状態')
@@ -189,7 +202,7 @@ function integrate(
       }
     }
 
-    scanEndPos += itemWidth(other.endState)
+    if (other.endState === INS) scanEndPos++
     scanIdx++
 
     if (!scanning) {
@@ -218,28 +231,31 @@ function apply1<T>(
     const cursor = findByCurPos(ctx, op.pos)
 
     // 次のInsertedアイテムを探す
-    while (ctx.items[cursor.idx]!.curState !== ItemState.Inserted) {
+    while (ctx.items[cursor.idx]!.curState !== INS) {
       const item = ctx.items[cursor.idx]!
-      cursor.endPos += itemWidth(item.endState)
+      if (item.endState === INS) cursor.endPos++
       cursor.idx++
     }
 
     const item = ctx.items[cursor.idx]!
-    if (item.curState !== ItemState.Inserted) {
+    if (item.curState !== INS) {
       throw Error('現在Insertedでないアイテムを削除しようとしています')
     }
 
     // 出力から削除
-    if (item.endState === ItemState.Inserted) {
+    if (item.endState === INS) {
       if (snapshot) snapshot.splice(cursor.endPos, 1)
     }
 
     // 状態を更新
-    item.curState = ItemState.Deleted
-    item.endState = ItemState.Deleted
+    item.curState = DEL
+    item.endState = DEL
 
     // この削除が対象とするアイテムを記録
     ctx.delTargets[opId] = item.opId
+
+    // 削除後はカーソルヒントを無効化
+    ctx._cursorHint = null
   } else {
     // 挿入: YjsMod統合アルゴリズムを使用
     const cursor = findByCurPos(ctx, op.pos)
@@ -247,7 +263,7 @@ function apply1<T>(
     // 前のアイテムがInserted状態であることを確認
     if (cursor.idx > 0) {
       const prevItem = ctx.items[cursor.idx - 1]!
-      if (prevItem.curState !== ItemState.Inserted) {
+      if (prevItem.curState !== INS) {
         throw Error('前のアイテムがInserted状態ではありません')
       }
     }
@@ -260,7 +276,7 @@ function apply1<T>(
     let rightParent = -1
     for (let i = cursor.idx; i < ctx.items.length; i++) {
       const nextItem = ctx.items[i]!
-      if (nextItem.curState !== ItemState.NotYetInserted) {
+      if (nextItem.curState !== NYI) {
         // Fugue方式: originLeftが同じならrightParentとする
         rightParent =
           nextItem.originLeft === originLeft ? nextItem.opId : -1
@@ -269,8 +285,8 @@ function apply1<T>(
     }
 
     const newItem: Item = {
-      curState: ItemState.Inserted,
-      endState: ItemState.Inserted,
+      curState: INS,
+      endState: INS,
       opId,
       originLeft,
       rightParent,
@@ -285,6 +301,13 @@ function apply1<T>(
 
     // スナップショットに挿入
     if (snapshot) snapshot.splice(cursor.endPos, 0, op.content)
+
+    // カーソルヒントを更新（次のfindByCurPosの開始位置）
+    ctx._cursorHint = {
+      pos: op.pos + 1,
+      idx: cursor.idx + 1,
+      endPos: cursor.endPos + 1,
+    }
   }
 }
 
@@ -303,11 +326,33 @@ export function traverseAndApply<T>(
   fromOp: number = 0,
   toOp: number = nextLV(oplog.cg),
 ): void {
-  for (const entry of iterVersionsBetween(oplog.cg, fromOp, toOp)) {
-    const { aOnly, bOnly } = diff(oplog.cg, ctx.curVersion, entry.parents)
+  if (fromOp === toOp) return
+
+  const cg = oplog.cg
+
+  // iterVersionsBetween のジェネレータをインライン化（状態マシン排除）
+  let entryIdx = binarySearch(cg.entries, (e) =>
+    fromOp < e.version ? -1 : fromOp >= e.vEnd ? 1 : 0,
+  )
+  if (entryIdx < 0) throw Error('無効または不足しているバージョン: ' + fromOp)
+
+  for (; entryIdx < cg.entries.length; entryIdx++) {
+    const entry = cg.entries[entryIdx]!
+    if (entry.version >= toOp) break
+
+    const vStart = max2(fromOp, entry.version)
+    const vEnd = min2(toOp, entry.vEnd)
+    const parents = vStart === entry.version ? entry.parents : [vStart - 1]
+
+    const { aOnly, bOnly } = diff(cg, ctx.curVersion, parents)
 
     const retreat = aOnly
     const advance = bOnly
+
+    // retreat/advanceがある場合、curStateが変わるためカーソルヒント無効化
+    if (retreat.length > 0 || advance.length > 0) {
+      ctx._cursorHint = null
+    }
 
     // Retreat: 逆順で処理（削除を元に戻してから挿入を元に戻す）
     for (let i = retreat.length - 1; i >= 0; i--) {
@@ -325,12 +370,12 @@ export function traverseAndApply<T>(
     }
 
     // Apply: 操作を適用
-    for (let lv = entry.version; lv < entry.vEnd; lv++) {
+    for (let lv = vStart; lv < vEnd; lv++) {
       apply1(ctx, snapshot, oplog, lv)
     }
 
     // 現在のバージョンを更新
-    ctx.curVersion = [entry.vEnd - 1]
+    ctx.curVersion = [vEnd - 1]
   }
 }
 
@@ -341,5 +386,6 @@ export function createEditContext(opsLength: number): EditContext {
     delTargets: new Array<number>(opsLength).fill(-1),
     itemsByLV: new Array<Item | null>(opsLength).fill(null),
     curVersion: [],
+    _cursorHint: null,
   }
 }

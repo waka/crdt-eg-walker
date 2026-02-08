@@ -35,7 +35,8 @@
     "lint:fix": "eslint . --fix",
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "bench": "vitest bench"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.2",

@@ -118,8 +118,6 @@ export function mergeOplogInto<T>(
 
   // 対応する操作エントリをコピー
   for (const [start, end] of ranges) {
-    for (let i = start; i < end; i++) {
-      dest.ops.push(src.ops[i]!)
-    }
+    dest.ops.push(...src.ops.slice(start, end))
   }
 }

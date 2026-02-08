@@ -96,7 +96,7 @@ const findClientEntryRaw = (
   agent: string,
   seq: number,
 ): ClientEntry | null => {
-  const av = cg.agentToVersion.get(agent)
+  const av = cg.agentToVersion[agent]
   if (av == null) return null
 
   const result = binarySearch(av, (entry) =>
@@ -130,21 +130,14 @@ const findClientEntryTrimmed = (
 export const createCG = (): CausalGraph => ({
   heads: [],
   entries: [],
-  agentToVersion: new Map(),
+  agentToVersion: {},
 })
 
 /** エージェントのClientEntryリストを取得（なければ作成） */
 export const clientEntriesForAgent = (
   cg: CausalGraph,
   agent: string,
-): ClientEntry[] => {
-  let entries = cg.agentToVersion.get(agent)
-  if (entries == null) {
-    entries = []
-    cg.agentToVersion.set(agent, entries)
-  }
-  return entries
-}
+): ClientEntry[] => (cg.agentToVersion[agent] ??= [])
 
 /** 次のLV（操作の総数）を返す */
 export const nextLV = (cg: CausalGraph): LV => {
@@ -154,7 +147,7 @@ export const nextLV = (cg: CausalGraph): LV => {
 
 /** 指定エージェントの次のシーケンス番号を返す */
 export const nextSeqForAgent = (cg: CausalGraph, agent: string): number => {
-  const entries = cg.agentToVersion.get(agent)
+  const entries = cg.agentToVersion[agent]
   if (entries == null || entries.length === 0) return 0
   return entries[entries.length - 1]!.seqEnd
 }
@@ -165,6 +158,10 @@ export const advanceFrontier = (
   vLast: LV,
   parents: LV[],
 ): LV[] => {
+  // 最頻ケース: frontier=[x], parents=[x] → [vLast]
+  if (frontier.length === 1 && parents.length === 1 && frontier[0] === parents[0]) {
+    return [vLast]
+  }
   const f = frontier.filter((v) => !parents.includes(v))
   f.push(vLast)
   return sortVersions(f)
@@ -423,15 +420,16 @@ export const eachVersionBetween = (
 
 /** 因果グラフのバージョンサマリを生成 */
 export const summarizeVersion = (cg: CausalGraph): VersionSummary => {
-  const result: VersionSummary = new Map()
-  for (const [agent, av] of cg.agentToVersion) {
+  const result: VersionSummary = {}
+  for (const agent in cg.agentToVersion) {
+    const av = cg.agentToVersion[agent]!
     if (av.length === 0) continue
 
     const versions: LVRange[] = []
     for (const ce of av) {
       pushRLERange(versions, ce.seq, ce.seqEnd)
     }
-    result.set(agent, versions)
+    result[agent] = versions
   }
   return result
 }

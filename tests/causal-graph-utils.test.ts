@@ -225,6 +225,6 @@ describe('intersectWithSummary', () => {
     expect(commonVersion).toEqual([2])
     // cg1にないCの操作が残差
     expect(remainder).not.toBeNull()
-    expect(remainder!.get('C')).toEqual([[0, 1]])
+    expect(remainder!['C']).toEqual([[0, 1]])
   })
 })
