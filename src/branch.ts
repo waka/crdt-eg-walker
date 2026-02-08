@@ -6,6 +6,9 @@
 
 import { diff, isFastForward, findConflicting, findDominators } from './causal-graph-advanced.js'
 import { traverseAndApply, createEditContext } from './edit-context.js'
+import { wrapArray } from './snapshot-ops.js'
+import { Rope } from './rope.js'
+import { OrderStatisticTree } from './order-statistic-tree.js'
 import { ItemState } from './types.js'
 import type {
   LV,
@@ -29,7 +32,7 @@ export function createEmptyBranch<T = string>(): Branch<T> {
 export function checkout<T>(oplog: ListOpLog<T>): Branch<T> {
   const ctx = createEditContext(oplog.ops.length)
   const snapshot: T[] = []
-  traverseAndApply(ctx, oplog, snapshot)
+  traverseAndApply(ctx, oplog, wrapArray(snapshot))
 
   return {
     snapshot,
@@ -42,11 +45,14 @@ export function checkoutSimple<T>(oplog: ListOpLog<T>): T[] {
   return checkout(oplog).snapshot
 }
 
-/** OpLogから全操作を適用して文字列を返す */
+/** OpLogから全操作を適用して文字列を返す（Ropeで高速化） */
 export function checkoutSimpleString(
   oplog: ListOpLog<string>,
 ): string {
-  return checkoutSimple(oplog).join('')
+  const ctx = createEditContext(oplog.ops.length)
+  const rope = new Rope()
+  traverseAndApply(ctx, oplog, rope)
+  return rope.toString()
 }
 
 /**
@@ -121,7 +127,7 @@ export function mergeChangesIntoBranch<T>(
   conflictOps.reverse()
 
   const ctx: EditContext = {
-    items: [],
+    items: new OrderStatisticTree(),
     delTargets: new Array<number>(oplog.ops.length).fill(-1),
     itemsByLV: new Array<Item | null>(oplog.ops.length).fill(null),
     curVersion: commonAncestor,
@@ -154,8 +160,9 @@ export function mergeChangesIntoBranch<T>(
   }
 
   // 新しい操作を適用（スナップショットを更新）
+  const snapshotOps = wrapArray(branch.snapshot)
   for (const [start, end] of newOps) {
-    traverseAndApply(ctx, oplog, branch.snapshot, start, end)
+    traverseAndApply(ctx, oplog, snapshotOps, start, end)
   }
 
   // バージョンを更新

@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { createOpLog, localInsert, localDelete } from '../src/oplog.js'
 import { traverseAndApply, createEditContext } from '../src/edit-context.js'
+import { wrapArray } from '../src/snapshot-ops.js'
 
 describe('traverseAndApply', () => {
   it('単純な挿入を適用する', () => {
@@ -9,7 +10,7 @@ describe('traverseAndApply', () => {
 
     const ctx = createEditContext(oplog.ops.length)
     const snapshot: string[] = []
-    traverseAndApply(ctx, oplog, snapshot)
+    traverseAndApply(ctx, oplog, wrapArray(snapshot))
 
     expect(snapshot.join('')).toBe('hello')
   })
@@ -22,7 +23,7 @@ describe('traverseAndApply', () => {
 
     const ctx = createEditContext(oplog.ops.length)
     const snapshot: string[] = []
-    traverseAndApply(ctx, oplog, snapshot)
+    traverseAndApply(ctx, oplog, wrapArray(snapshot))
 
     expect(snapshot.join('')).toBe('halo')
   })
@@ -32,7 +33,7 @@ describe('traverseAndApply', () => {
 
     const ctx = createEditContext(oplog.ops.length)
     const snapshot: string[] = []
-    traverseAndApply(ctx, oplog, snapshot)
+    traverseAndApply(ctx, oplog, wrapArray(snapshot))
 
     expect(snapshot).toEqual([])
   })
@@ -44,7 +45,7 @@ describe('traverseAndApply', () => {
 
     const ctx = createEditContext(oplog.ops.length)
     const snapshot: string[] = []
-    traverseAndApply(ctx, oplog, snapshot)
+    traverseAndApply(ctx, oplog, wrapArray(snapshot))
 
     expect(snapshot.join('')).toBe('ab')
   })
@@ -56,7 +57,7 @@ describe('traverseAndApply', () => {
 
     const ctx = createEditContext(oplog.ops.length)
     const snapshot: string[] = []
-    traverseAndApply(ctx, oplog, snapshot)
+    traverseAndApply(ctx, oplog, wrapArray(snapshot))
 
     expect(snapshot.join('')).toBe('ab')
   })
@@ -68,7 +69,7 @@ describe('traverseAndApply', () => {
 
     const ctx = createEditContext(oplog.ops.length)
     const snapshot: string[] = []
-    traverseAndApply(ctx, oplog, snapshot)
+    traverseAndApply(ctx, oplog, wrapArray(snapshot))
 
     expect(snapshot.join('')).toBe('')
   })
@@ -80,7 +81,7 @@ describe('traverseAndApply', () => {
     const ctx = createEditContext(oplog.ops.length)
     const snapshot: string[] = []
     // 最初の2操作のみ適用
-    traverseAndApply(ctx, oplog, snapshot, 0, 2)
+    traverseAndApply(ctx, oplog, wrapArray(snapshot), 0, 2)
 
     expect(snapshot.join('')).toBe('ab')
   })

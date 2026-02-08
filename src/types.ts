@@ -95,8 +95,8 @@ export interface Item {
 
 /** 編集コンテキスト */
 export interface EditContext {
-  /** 文書内のアイテムリスト（位置順） */
-  items: Item[]
+  /** 文書内のアイテムリスト（順序統計木） */
+  items: import('./order-statistic-tree.js').OrderStatisticTree
   /** 削除操作の対象バージョン */
   delTargets: LV[]
   /** LV → Itemの参照（高速検索用） */

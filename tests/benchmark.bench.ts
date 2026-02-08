@@ -8,6 +8,11 @@ import {
   checkoutSimpleString,
   checkout,
   mergeChangesIntoBranch,
+  createDocument,
+  openDocument,
+  restoreDocument,
+  docInsert,
+  getText,
 } from '../src/index.js'
 import type { Branch } from '../src/index.js'
 import {
@@ -553,22 +558,27 @@ describe(`大文書(${LARGE_DOC_SIZE}文字)の並行編集+マージ`, () => {
   })
 })
 
-// --- ドキュメントオープン（操作履歴からの復元）のベンチマーク ---
-// eg-walkerの特長: OpLogのみ保持し、表示時にcheckoutで復元
-// 従来CRDT(Yjs)の弱点: エンコード済み状態からの復元が必要
+// --- ドキュメントオープンのベンチマーク ---
+// eg-walkerの真の強み: スナップショットをキャッシュしておけば、復元は配列コピーだけ
+// 従来CRDT(Yjs): エンコード済み状態のデシリアライズが必要
 
-describe(`ドキュメントオープン: ${LARGE_DOC_SIZE}文字の文書を操作履歴から復元`, () => {
-  // 事前に操作履歴を構築済み（測定外）
+describe(`ドキュメントオープン（公正な比較）: ${LARGE_DOC_SIZE}文字`, () => {
+  // 事前にキャッシュを構築済み（測定外）
   const baseOplog = buildLargeEgWalkerDoc()
-  const baseRefOplog = buildLargeRefDoc()
+  const baseBranch = checkout(baseOplog)
+  // 実際のアプリではディスクにプレーンテキストとしてキャッシュされる
+  const cachedSnapshot = baseBranch.snapshot
+  const cachedVersion = baseBranch.version
   const yjsState = buildLargeYjsState()
 
-  bench('eg-walker: checkout', () => {
-    checkoutSimpleString(baseOplog)
+  bench('eg-walker: キャッシュからの復元 (restoreDocument)', () => {
+    // 配列コピー + 文字列化のコスト
+    const doc = restoreDocument(baseOplog, cachedSnapshot, cachedVersion)
+    getText(doc)
   })
 
-  bench('eg-walker (reference): checkout', () => {
-    refCheckoutSimpleString(baseRefOplog)
+  bench('eg-walker: フルリプレイ (checkout)', () => {
+    checkoutSimpleString(baseOplog)
   })
 
   bench('Yjs: applyUpdate + toString', () => {
@@ -605,22 +615,55 @@ function buildVeryLargeYjsState() {
   return Y.encodeStateAsUpdate(doc)
 }
 
-describe(`ドキュメントオープン: ${VERY_LARGE_DOC_SIZE}文字の文書を操作履歴から復元`, () => {
+describe(`ドキュメントオープン（公正な比較）: ${VERY_LARGE_DOC_SIZE}文字`, () => {
   const baseOplog = buildVeryLargeEgWalkerDoc()
-  const baseRefOplog = buildVeryLargeRefDoc()
+  const baseBranch = checkout(baseOplog)
+  const cachedSnapshot = baseBranch.snapshot
+  const cachedVersion = baseBranch.version
   const yjsState = buildVeryLargeYjsState()
 
-  bench('eg-walker: checkout', () => {
-    checkoutSimpleString(baseOplog)
+  bench('eg-walker: キャッシュからの復元 (restoreDocument)', () => {
+    const doc = restoreDocument(baseOplog, cachedSnapshot, cachedVersion)
+    getText(doc)
   })
 
-  bench('eg-walker (reference): checkout', () => {
-    refCheckoutSimpleString(baseRefOplog)
+  bench('eg-walker: フルリプレイ (checkout)', () => {
+    checkoutSimpleString(baseOplog)
   })
 
   bench('Yjs: applyUpdate + toString', () => {
     const doc = new Y.Doc()
     Y.applyUpdate(doc, yjsState)
     doc.getText('t').toString()
+  })
+})
+
+// --- Document APIでのローカル編集ベンチマーク ---
+// docInsertは毎回スナップショットを直接更新するため、最後のgetText()は即座に返る
+
+describe(`Document APIでのローカル編集: ${LARGE_DOC_SIZE}文字構築`, () => {
+  bench('eg-walker Document (docInsert)', () => {
+    const doc = createDocument<string>()
+    for (let i = 0; i < LARGE_DOC_SIZE; i++) {
+      docInsert(doc, 'A', i, String.fromCharCode(97 + (i % 26)))
+    }
+    getText(doc)
+  })
+
+  bench('eg-walker 従来API (localInsert + checkout)', () => {
+    const oplog = createOpLog<string>()
+    for (let i = 0; i < LARGE_DOC_SIZE; i++) {
+      localInsert(oplog, 'A', i, String.fromCharCode(97 + (i % 26)))
+    }
+    checkoutSimpleString(oplog)
+  })
+
+  bench('Yjs', () => {
+    const doc = new Y.Doc()
+    const text = doc.getText('t')
+    for (let i = 0; i < LARGE_DOC_SIZE; i++) {
+      text.insert(i, String.fromCharCode(97 + (i % 26)))
+    }
+    text.toString()
   })
 })

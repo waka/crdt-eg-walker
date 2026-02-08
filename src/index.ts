@@ -77,6 +77,16 @@ export {
   mergeOplogInto,
 } from './oplog.js'
 
+// スナップショット操作
+export type { SnapshotOps } from './snapshot-ops.js'
+export { wrapArray } from './snapshot-ops.js'
+
+// Rope
+export { Rope } from './rope.js'
+
+// 順序統計木
+export { OrderStatisticTree } from './order-statistic-tree.js'
+
 // 編集コンテキスト
 export {
   traverseAndApply,
@@ -91,3 +101,16 @@ export {
   checkoutSimpleString,
   mergeChangesIntoBranch,
 } from './branch.js'
+
+// ドキュメント（OpLog + スナップショットの統合管理）
+export type { Document } from './document.js'
+export {
+  createDocument,
+  openDocument,
+  restoreDocument,
+  docInsert,
+  docDelete,
+  getContent,
+  getText,
+  mergeRemote,
+} from './document.js'

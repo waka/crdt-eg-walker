@@ -3,6 +3,8 @@
  *
  * apply1, retreat1, advance1, integrate, findByCurPos, traverseAndApply を実装。
  * Fugue/YjsMod CRDTの統合アルゴリズムとイベントグラフの歩行ロジック。
+ *
+ * 順序統計木を使い、findByCurPos を O(log n) で実行する。
  */
 
 import {
@@ -11,6 +13,7 @@ import {
 } from './causal-graph.js'
 import { binarySearch } from './utils/binary-search.js'
 import { diff } from './causal-graph-advanced.js'
+import { OrderStatisticTree } from './order-statistic-tree.js'
 import type {
   ItemState,
   Item,
@@ -18,6 +21,7 @@ import type {
   ListOpLog,
   CausalGraph,
 } from './types.js'
+import type { SnapshotOps } from './snapshot-ops.js'
 
 // ===== ヘルパー =====
 
@@ -40,38 +44,18 @@ interface DocCursor {
 
 /**
  * prepareバージョンでの文書位置からアイテムを検索する。
- * targetPosの位置にカーソルを返す。
+ * 順序統計木を使い O(log n) で検索する。
  */
 function findByCurPos(ctx: EditContext, targetPos: number): DocCursor {
-  let curPos = 0
-  let endPos = 0
-  let i = 0
-
-  // ヒントが有効かつ targetPos >= ヒント位置なら、そこから開始
-  const hint = ctx._cursorHint
-  if (hint !== null && targetPos >= hint.pos) {
-    curPos = hint.pos
-    endPos = hint.endPos
-    i = hint.idx
-  }
-
-  while (curPos < targetPos) {
-    if (i >= ctx.items.length) {
-      throw Error('ドキュメントがtargetPosに到達するのに十分な長さではありません')
-    }
-
-    const item = ctx.items[i]!
-    if (item.curState === INS) curPos++
-    if (item.endState === INS) endPos++
-    i++
-  }
-
-  return { idx: i, endPos }
+  const result = ctx.items.findByCurPos(targetPos, ctx._cursorHint)
+  return { idx: result.idx, endPos: result.endPos }
 }
 
-/** opIdでアイテムのインデックスを検索する */
+/** opIdでアイテムのインデックスを検索する O(log n) */
 const findItemIdx = (ctx: EditContext, needle: number): number => {
-  const idx = ctx.items.findIndex((i) => i.opId === needle)
+  const item = ctx.itemsByLV[needle]
+  if (!item) throw Error('アイテムが見つかりません: ' + needle)
+  const idx = ctx.items.indexOfItem(item)
   if (idx === -1) throw Error('アイテムが見つかりません: ' + needle)
   return idx
 }
@@ -106,6 +90,9 @@ function advance1<T>(
     }
     item.curState = INS
   }
+
+  // 状態変更後にツリーのカウンタを更新（O(log n)）
+  ctx.items.refreshCountsForItem(item)
 }
 
 // ===== retreat1 =====
@@ -138,6 +125,9 @@ function retreat1<T>(
 
   // curStateを1つ戻す
   item.curState = (item.curState - 1) as ItemState
+
+  // 状態変更後にツリーのカウンタを更新（O(log n)）
+  ctx.items.refreshCountsForItem(item)
 }
 
 // ===== integrate =====
@@ -155,9 +145,11 @@ function integrate(
   cursor: DocCursor,
 ): void {
   // 並行挿入がなければスキャン不要
+  const curItem = ctx.items.getByIndex(cursor.idx)
   if (
     cursor.idx >= ctx.items.length ||
-    ctx.items[cursor.idx]!.curState !== NYI
+    curItem === null ||
+    curItem.curState !== NYI
   ) {
     return
   }
@@ -173,7 +165,7 @@ function integrate(
       : findItemIdx(ctx, newItem.rightParent)
 
   while (scanIdx < ctx.items.length) {
-    const other = ctx.items[scanIdx]!
+    const other = ctx.items.getByIndex(scanIdx)!
 
     // 並行挿入の範囲を超えたら終了
     if (other.curState !== NYI) break
@@ -216,11 +208,11 @@ function integrate(
 
 /**
  * 操作を適用する。
- * 挿入: integrate→splice、削除: 対象特定→状態更新
+ * 挿入: integrate→insertAt、削除: 対象特定→状態更新
  */
 function apply1<T>(
   ctx: EditContext,
-  snapshot: T[] | null,
+  snapshot: SnapshotOps<T> | null,
   oplog: ListOpLog<T>,
   opId: number,
 ): void {
@@ -231,25 +223,29 @@ function apply1<T>(
     const cursor = findByCurPos(ctx, op.pos)
 
     // 次のInsertedアイテムを探す
-    while (ctx.items[cursor.idx]!.curState !== INS) {
-      const item = ctx.items[cursor.idx]!
-      if (item.endState === INS) cursor.endPos++
+    let curItem = ctx.items.getByIndex(cursor.idx)!
+    while (curItem.curState !== INS) {
+      if (curItem.endState === INS) cursor.endPos++
       cursor.idx++
+      curItem = ctx.items.getByIndex(cursor.idx)!
     }
 
-    const item = ctx.items[cursor.idx]!
+    const item = curItem
     if (item.curState !== INS) {
       throw Error('現在Insertedでないアイテムを削除しようとしています')
     }
 
     // 出力から削除
     if (item.endState === INS) {
-      if (snapshot) snapshot.splice(cursor.endPos, 1)
+      if (snapshot) snapshot.delete(cursor.endPos)
     }
 
     // 状態を更新
     item.curState = DEL
     item.endState = DEL
+
+    // ツリーのカウンタを更新（O(log n)）
+    ctx.items.refreshCountsForItem(item)
 
     // この削除が対象とするアイテムを記録
     ctx.delTargets[opId] = item.opId
@@ -262,7 +258,7 @@ function apply1<T>(
 
     // 前のアイテムがInserted状態であることを確認
     if (cursor.idx > 0) {
-      const prevItem = ctx.items[cursor.idx - 1]!
+      const prevItem = ctx.items.getByIndex(cursor.idx - 1)!
       if (prevItem.curState !== INS) {
         throw Error('前のアイテムがInserted状態ではありません')
       }
@@ -270,12 +266,12 @@ function apply1<T>(
 
     // originLeftは左隣のアイテムのLV
     const originLeft =
-      cursor.idx === 0 ? -1 : ctx.items[cursor.idx - 1]!.opId
+      cursor.idx === 0 ? -1 : ctx.items.getByIndex(cursor.idx - 1)!.opId
 
     // rightParentの検索（Fugue方式）
     let rightParent = -1
     for (let i = cursor.idx; i < ctx.items.length; i++) {
-      const nextItem = ctx.items[i]!
+      const nextItem = ctx.items.getByIndex(i)!
       if (nextItem.curState !== NYI) {
         // Fugue方式: originLeftが同じならrightParentとする
         rightParent =
@@ -296,11 +292,11 @@ function apply1<T>(
     // 統合アルゴリズムでカーソル位置を決定
     integrate(ctx, oplog.cg, newItem, cursor)
 
-    // アイテムリストに挿入
-    ctx.items.splice(cursor.idx, 0, newItem)
+    // 順序統計木に挿入
+    ctx.items.insertAt(cursor.idx, newItem)
 
     // スナップショットに挿入
-    if (snapshot) snapshot.splice(cursor.endPos, 0, op.content)
+    if (snapshot) snapshot.insert(cursor.endPos, op.content)
 
     // カーソルヒントを更新（次のfindByCurPosの開始位置）
     ctx._cursorHint = {
@@ -322,7 +318,7 @@ function apply1<T>(
 export function traverseAndApply<T>(
   ctx: EditContext,
   oplog: ListOpLog<T>,
-  snapshot: T[] | null,
+  snapshot: SnapshotOps<T> | null,
   fromOp: number = 0,
   toOp: number = nextLV(oplog.cg),
 ): void {
@@ -382,7 +378,7 @@ export function traverseAndApply<T>(
 /** 空のEditContextを作成する */
 export function createEditContext(opsLength: number): EditContext {
   return {
-    items: [],
+    items: new OrderStatisticTree(),
     delTargets: new Array<number>(opsLength).fill(-1),
     itemsByLV: new Array<Item | null>(opsLength).fill(null),
     curVersion: [],

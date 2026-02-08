@@ -9,7 +9,7 @@ import {
   serializeDiff,
   mergePartialVersions,
   intersectWithSummary,
-} from '../src/causal-graph-utils.js'
+} from '../src/causal-graph-advanced.js'
 import { summarizeVersion } from '../src/causal-graph.js'
 import { DiffFlag } from '../src/types.js'
 import type { LVRange } from '../src/types.js'
