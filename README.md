@@ -20,11 +20,6 @@ Eg-walkerは操作ログ（OpLog）のみを保持し、ドキュメント状態
 
 ## セットアップ
 
-### 前提条件
-
-- Node.js >= 18
-- Git
-
 ### インストール
 
 ```bash
@@ -41,7 +36,8 @@ npm install
 
 ### ベンチマーク用のサブモジュールビルド
 
-ベンチマークとメモリ使用量テストでは、比較対象として [Yjs](https://github.com/yjs/yjs) と [eg-walker-reference](https://github.com/josephg/eg-walker-reference) を使用しています。これらは Git サブモジュールとして `vendor/` 以下に配置されており、実行前にビルドが必要です。
+ベンチマークとメモリ使用量テストでは比較対象として、メジャーなCRDT実装である [Yjs](https://github.com/yjs/yjs) と、このライブラリの参考にしている eg-walker の参照実装である [eg-walker-reference](https://github.com/josephg/eg-walker-reference) を使用しています。  
+これらは Git サブモジュールとして `vendor/` 以下に配置されており、実行前にビルドが必要です。
 
 ```bash
 # Yjs のビルド
@@ -50,7 +46,11 @@ npm install
 npm run dist
 cd ../..
 
-# eg-walker-reference は dist/ がリポジトリに含まれているためビルド不要
+# eg-walker-reference のビルド
+cd vendor/eg-walker-reference
+npm install
+npm run prepare
+cd ../..
 ```
 
 ### テスト・ベンチマークの実行
