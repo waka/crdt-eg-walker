@@ -24,7 +24,7 @@ Eg-walkerはテキストのみを保持し、ドキュメントの操作（追�
 
 ```bash
 # リポジトリのクローン（サブモジュールも含めて取得）
-git clone --recursive https://github.com/takumi-asobi/egwalker-js.git
+git clone --recursive https://github.com/waka/crdt-egwalker-js.git
 cd egwalker-js
 
 # サブモジュールのみ後から取得する場合
