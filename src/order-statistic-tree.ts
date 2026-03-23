@@ -191,6 +191,25 @@ function nodeToIndex(node: OSTNode): number {
 }
 
 /**
+ * ノードの curState === INS 順位（左側にある INS 数）を O(log n) で計算する。
+ * ノード自身の INS は含まない（"このノードより前にある INS 数" を返す）。
+ */
+function nodeToCurInsRank(node: OSTNode): number {
+  // 左サブツリーの INS 数から開始
+  let rank = curIns(node.left)
+  let current = node
+  while (current.parent !== null) {
+    const p = current.parent
+    if (current === p.right) {
+      // 右の子 → 親の左サブツリーの INS 数 + 親自身が INS なら 1
+      rank += curIns(p.left) + (p.item.curState === INS ? 1 : 0)
+    }
+    current = p
+  }
+  return rank
+}
+
+/**
  * curPos に基づいてアイテムを検索する。
  *
  * 元の配列版 findByCurPos と同等のセマンティクス:
@@ -328,6 +347,22 @@ export class OrderStatisticTree {
     const node = this._nodeMap.get(item)
     if (!node) return -1
     return nodeToIndex(node)
+  }
+
+  /** curState === INS のアイテム総数（可視文字数）。O(1)。 */
+  get curInsTotal(): number {
+    return curIns(this._root)
+  }
+
+  /**
+   * アイテムより前にある curState === INS のアイテム数を O(log n) で返す。
+   * （アイテム自身の INS は含まない）
+   * Anchor → index 変換で使用。
+   */
+  curInsRankOfItem(item: Item): number {
+    const node = this._nodeMap.get(item)
+    if (!node) return -1
+    return nodeToCurInsRank(node)
   }
 
   /**

@@ -86,6 +86,39 @@ export {
   lvEq,
 } from './causal-graph.js'
 
+// ===== Phase 1: Encoding =====
+
+export { encodeOpLog, decodeOpLog, encodeMessage, decodeMessage } from './encoding.js'
+
+// ===== Phase 1: Provider =====
+
+export type { Provider, ProviderEventMap } from './provider.js'
+export { ProviderBase, WebSocketProvider, InMemoryProvider } from './provider.js'
+
+// ===== Phase 1: Anchor (Relative Positions) =====
+
+export type { Anchor } from './anchor.js'
+export { indexToAnchor, anchorToIndex } from './anchor.js'
+
+// ===== Phase 2: Transaction =====
+
+export type { UndoGroup } from './transaction.js'
+export { Transaction } from './transaction.js'
+
+// ===== Phase 2: UndoManager =====
+
+export { UndoManager, buildUndoContext } from './undo-manager.js'
+
+// ===== Phase 3: Awareness =====
+
+export type { Message, AwarenessOptions } from './awareness.js'
+export { Awareness, HEARTBEAT_INTERVAL, HEARTBEAT_TIMEOUT } from './awareness.js'
+
+// ===== EditContext（UndoManager / Anchor で使用） =====
+
+export type { EditContext } from './types.js'
+export { createEditContext, traverseAndApply } from './edit-context.js'
+
 export {
   diff,
   isFastForward,
