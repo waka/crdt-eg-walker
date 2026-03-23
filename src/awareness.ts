@@ -140,14 +140,14 @@ export class Awareness<T> {
    * @param event  現在は 'change' のみ
    * @param handler  全クライアントの現在状態 Map を受け取る関数
    */
-  on(event: 'change', handler: (states: Map<string, T>) => void): void {
+  on(_event: 'change', handler: (states: Map<string, T>) => void): void {
     this._handlers.add(handler)
   }
 
   /**
    * 購読を解除する。
    */
-  off(event: 'change', handler: (states: Map<string, T>) => void): void {
+  off(_event: 'change', handler: (states: Map<string, T>) => void): void {
     this._handlers.delete(handler)
   }
 

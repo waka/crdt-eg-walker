@@ -136,6 +136,179 @@ Document APIを使って10,000文字のドキュメントをゼロから構築�
 
 eg-walkerは操作ログのみを保持し、CRDTメタデータ（Item構造体、tombstone等）を常駐させないため、Yjsと比較してメモリ使用量が大幅に少なくなっています。
 
+## 使い方
+
+### ドキュメントの作成・編集
+
+```typescript
+import { createDocument, docInsert, docDelete, getText } from 'crdt-eg-walker'
+
+const doc = createDocument<string>()
+
+// ローカル編集（エージェントIDを渡す）
+docInsert(doc, 'agent-A', 0, 'h', 'e', 'l', 'l', 'o')
+docDelete(doc, 'agent-A', 0)  // 先頭1文字削除
+console.log(getText(doc))     // "ello"
+```
+
+テキスト特化の `TextDocument` を使うと、スナップショットを文字列で直接管理できます。
+
+```typescript
+import { createTextDocument, textDocInsert, getTextDocText } from 'crdt-eg-walker'
+
+const doc = createTextDocument()
+textDocInsert(doc, 'agent-A', 0, 'hello')
+console.log(getTextDocText(doc))  // "hello"
+```
+
+### ネットワーク同期
+
+`Provider` でネットワーク層を抽象化します。`WebSocketProvider` は本番用、`InMemoryProvider` はテスト・デモ用です。
+
+```typescript
+import {
+  createDocument, docInsert, mergeRemote,
+  encodeOpLog, decodeOpLog,
+  WebSocketProvider,
+} from 'crdt-eg-walker'
+
+const doc = createDocument<string>()
+const provider = new WebSocketProvider('wss://example.com/sync')
+
+// リモートから op を受け取ってマージ
+provider.on('op', (data) => {
+  const remoteOplog = decodeOpLog<string>(data)
+  mergeRemote(doc, remoteOplog)
+})
+
+provider.connect()
+
+// ローカル編集後にブロードキャスト
+docInsert(doc, 'agent-A', 0, 'h', 'i')
+provider.sendOp(encodeOpLog(doc.oplog))
+```
+
+op と Awareness を同一チャンネルで流す場合は `encodeMessage` / `decodeMessage` でフレーミングします。
+
+```typescript
+import { encodeMessage, decodeMessage } from 'crdt-eg-walker'
+
+// 送信
+provider.sendOp(encodeMessage({ type: 'op', data: encodeOpLog(doc.oplog) }))
+
+// 受信
+provider.on('op', (raw) => {
+  const msg = decodeMessage(raw)
+  if (msg.type === 'op') {
+    mergeRemote(doc, decodeOpLog(msg.data))
+  } else if (msg.type === 'awareness') {
+    awareness.applyRemoteState(msg.clientId, msg.data)
+  }
+})
+```
+
+### カーソル位置の相対化（Anchor）
+
+整数インデックスで持つカーソル位置は、リモートの挿入・削除でズレます。`Anchor` を使うと「何番目の文字の後ろ」ではなく「どのアイテムの後ろ」で保持できます。
+
+```typescript
+import {
+  createEditContext, traverseAndApply,
+  indexToAnchor, anchorToIndex,
+} from 'crdt-eg-walker'
+
+// EditContext を構築（リモート op 適用前に取得）
+const ctx = createEditContext(doc.oplog.ops.length)
+traverseAndApply(ctx, doc.oplog, null)
+
+// カーソル位置 → Anchor に変換して保持
+const anchor = indexToAnchor(ctx, cursorIndex)
+
+// リモート op を適用後、Anchor → カーソル位置に戻す
+mergeRemote(doc, remoteOplog)
+const ctxAfter = createEditContext(doc.oplog.ops.length)
+traverseAndApply(ctxAfter, doc.oplog, null)
+const newIndex = anchorToIndex(ctxAfter, anchor)
+```
+
+### Undo / Redo
+
+`Transaction` でグループ化し、`UndoManager` で逆操作を生成します。他ユーザーの操作には影響しません。
+
+```typescript
+import {
+  createDocument, docInsert, docDelete,
+  Transaction, UndoManager, buildUndoContext,
+} from 'crdt-eg-walker'
+
+const doc = createDocument<string>()
+const tx = new Transaction()
+const um = new UndoManager<string>('agent-A')
+
+// IME確定などのまとまった操作を1グループにする
+const group = tx.transact(doc.oplog, () => {
+  docInsert(doc, 'agent-A', 0, 'h', 'e', 'l', 'l', 'o')
+})
+um.push(group)
+
+// Undo
+if (um.canUndo) {
+  const ctx = buildUndoContext(doc.oplog)
+  um.undo(ctx, doc.oplog, (ops) => {
+    for (const op of ops) {
+      if (op.type === 'del') docDelete(doc, 'agent-A', op.pos)
+      else docInsert(doc, 'agent-A', op.pos, op.content)
+    }
+  })
+}
+
+// Redo
+if (um.canRedo) {
+  const ctx = buildUndoContext(doc.oplog)
+  um.redo(ctx, doc.oplog, (ops) => {
+    for (const op of ops) {
+      if (op.type === 'del') docDelete(doc, 'agent-A', op.pos)
+      else docInsert(doc, 'agent-A', op.pos, op.content)
+    }
+  })
+}
+```
+
+### Awareness（リモートカーソル共有）
+
+CRDT で同期するほどではないが今すぐ他ユーザーに伝えたい状態（カーソル・ユーザー名など）を共有します。Last-Write-Wins で十分な揮発性データ向けです。
+
+```typescript
+import { Awareness } from 'crdt-eg-walker'
+
+type EditorState = {
+  cursor: { anchor: Anchor; head: Anchor }
+  user: { name: string; color: string }
+}
+
+const awareness = new Awareness<EditorState>()
+
+// カーソルが動いたとき
+awareness.setLocalState(myClientId, {
+  cursor: { anchor: indexToAnchor(ctx, selStart), head: indexToAnchor(ctx, selEnd) },
+  user: { name: 'waka', color: '#E8F4F8' },
+})
+
+// 他クライアントの状態を受信したとき
+awareness.on('change', (states) => {
+  renderRemoteCursors(states)
+})
+
+// ハートビート（30秒間隔でブロードキャスト、60秒無応答でオフライン扱い）
+awareness.startHeartbeat(
+  myClientId,
+  () => awareness.getState(myClientId)!,
+  (state) => provider.sendOp(encodeMessage({ type: 'awareness', clientId: myClientId, data: state })),
+)
+```
+
+---
+
 ## アーキテクチャ
 
 ```
@@ -148,6 +321,12 @@ src/
   branch.ts                - ブランチ操作（checkout, 増分更新）
   document.ts              - Document（OpLog + T[]スナップショット統合管理）
   text-document.ts         - TextDocument（テキスト特化、stringスナップショット）
+  encoding.ts              - MessagePack シリアライズ（OpLog・Message）
+  provider.ts              - Provider インターフェース + WebSocket/InMemory 実装
+  anchor.ts                - Anchor（相対カーソル位置）
+  transaction.ts           - Transaction（操作グループ化）
+  undo-manager.ts          - UndoManager（協調編集対応 Undo/Redo）
+  awareness.ts             - Awareness（リアルタイム共有状態）
   index.ts                 - 公開APIエントリポイント
 ```
 
