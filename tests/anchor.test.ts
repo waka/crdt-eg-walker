@@ -100,8 +100,6 @@ describe('anchorToIndex: 削除フォールバック', () => {
     // 'b' (opId=1) を削除
     localDelete(oplog, 'A', 1)
 
-    // 削除前の ctx でアンカーを作成（'b' の直後 = index 2）
-    const ctxBefore = buildCtx(createOpLog<string>())
     // 直接 opId=1 のアンカーを作成して削除後の ctx でテスト
     const anchor: ReturnType<typeof indexToAnchor> = { type: 'after', opId: 1 }
 

@@ -26,9 +26,6 @@
     "isolatedModules": true, // 各ファイルを独立して変換し、解釈できないコードを検出
     "skipLibCheck": true, // *.d.tsファイルの型チェックをスキップ
     "verbatimModuleSyntax": true, // import/export構文をそのまま保持
-
-    // パス解決
-    "baseUrl": "."
   },
   "include": ["src", "stories"],
   "exclude": ["node_modules", "dist", "storybook-static", "vendor"]

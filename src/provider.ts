@@ -29,7 +29,8 @@ export interface Provider {
 
 /** イベントバスの共通実装。Provider 実装のベースクラス。 */
 export abstract class ProviderBase implements Provider {
-  private _handlers: Map<string, Set<Function>> = new Map()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private _handlers: Map<string, Set<(...args: any[]) => void>> = new Map()
 
   abstract connect(): void
   abstract disconnect(): void
@@ -48,7 +49,7 @@ export abstract class ProviderBase implements Provider {
     event: K,
     ...args: Parameters<ProviderEventMap[K]>
   ): void {
-    this._handlers.get(event)?.forEach((h) => (h as Function)(...args))
+    this._handlers.get(event)?.forEach((h) => h(...args))
   }
 }
 
@@ -80,7 +81,7 @@ export class WebSocketProvider extends ProviderBase {
 
   sendOp(data: Uint8Array): void {
     if (this._ws?.readyState === WebSocket.OPEN) {
-      this._ws.send(data)
+      this._ws.send(data as Uint8Array<ArrayBuffer>)
     }
   }
 }
